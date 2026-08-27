@@ -1,7 +1,7 @@
 {
   "name": "TaskFlow — by Maha",
   "short_name": "TaskFlow",
-  "description": "Premium personal productivity app by Maha.",
+  "description": "A premium personal productivity app by Maha.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#07080c",
