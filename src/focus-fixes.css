@@ -8,6 +8,5 @@
 .focus-page .custom-focus span{color:#696875;font-size:11px;font-weight:500}
 .focus-page .custom-focus small{display:block;margin-top:8px;color:#858692;font-size:9px;line-height:1.35}
 /* Settings branding */
-.about b{font-size:0}
-.about b::after{content:'TaskFlow';font-size:inherit}
+.about b{font-size:12px;color:#34303f}
 @media(max-width:420px){.focus-page .custom-focus{max-width:270px;padding:13px 14px}.focus-page .custom-focus input{width:82px}}
