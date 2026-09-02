@@ -7,7 +7,22 @@
 .focus-page .custom-focus input::-webkit-outer-spin-button,.focus-page .custom-focus input::-webkit-inner-spin-button{margin:0;opacity:.45}
 .focus-page .custom-focus span{color:#696875;font-size:11px;font-weight:500}
 .focus-page .custom-focus small{display:block;margin-top:8px;color:#858692;font-size:9px;line-height:1.35}
-/* Settings branding: show only TaskFlow */
+/* Settings branding */
 .about b{font-size:0!important;color:#34303f}
 .about b::after{content:'TaskFlow';font:700 12px 'Space Grotesk';color:#34303f}
-@media(max-width:420px){.focus-page .custom-focus{max-width:270px;padding:13px 14px}.focus-page .custom-focus input{width:82px}}
+/* Settings enhancements */
+.settings-page .setting-row{min-height:72px;align-items:center}
+.settings-page .setting-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.settings-page .google-connect{margin:0 0 14px;padding:14px;border:1px solid rgba(92,78,130,.12);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.82),rgba(244,241,250,.68));box-shadow:inset 0 1px rgba(255,255,255,.95),0 10px 28px rgba(70,60,100,.06)}
+.settings-page .google-email{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:9px}
+.settings-page .google-email>svg{color:#7a62c9}
+.settings-page .google-email input{width:100%;height:40px;min-width:0;padding:0 11px;border:1px solid rgba(105,88,155,.16);border-radius:11px;background:rgba(255,255,255,.92);color:#302d3a;font:500 12px 'DM Sans';outline:none}
+.settings-page .google-email input:focus{border-color:rgba(126,91,220,.45);box-shadow:0 0 0 3px rgba(139,92,246,.09)}
+.settings-page .google-email button,.settings-page .drive-backup{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:11px;font:600 11px 'DM Sans';cursor:pointer}
+.settings-page .google-email button{height:40px;padding:0 12px;background:#ece5ff;color:#5e49a7}
+.settings-page .drive-backup{width:100%;height:44px;margin-top:10px;background:linear-gradient(135deg,#cbb5ff,#a984f5);color:#2d2443;box-shadow:0 8px 20px rgba(126,91,220,.14)}
+.settings-page .google-connect small{display:block;margin:9px 2px 0;color:#858692;font-size:9px;line-height:1.4}
+.profile-sheet .task-input{margin-bottom:14px}
+.profile-sheet>label{display:block;margin:0 0 7px;color:#4b4855;font:600 11px 'DM Sans'}
+.profile-genders{margin:0 0 16px}
+@media(max-width:420px){.settings-page .google-connect{padding:12px}.settings-page .google-email{grid-template-columns:16px minmax(0,1fr)}.settings-page .google-email button{grid-column:2;height:36px;justify-self:start}.settings-page .google-email input{height:38px}.settings-page .drive-backup{height:42px}.settings-page .setting-row{min-height:68px}}
