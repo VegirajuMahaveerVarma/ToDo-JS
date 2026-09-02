@@ -25,4 +25,7 @@
 .profile-sheet .task-input{margin-bottom:14px}
 .profile-sheet>label{display:block;margin:0 0 7px;color:#4b4855;font:600 11px 'DM Sans'}
 .profile-genders{margin:0 0 16px}
+/* TaskFlow notices: show for 3 seconds, then fade away */
+.toast{animation:taskflow-toast 3s ease-in-out forwards}
+@keyframes taskflow-toast{0%,78%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,8px);pointer-events:none}}
 @media(max-width:420px){.settings-page .google-connect{padding:12px}.settings-page .google-email{grid-template-columns:16px minmax(0,1fr)}.settings-page .google-email button{grid-column:2;height:36px;justify-self:start}.settings-page .google-email input{height:38px}.settings-page .drive-backup{height:42px}.settings-page .setting-row{min-height:68px}}
