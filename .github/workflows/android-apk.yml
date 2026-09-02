@@ -29,18 +29,20 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Allow exact Android alarms
+      - name: Configure Android alarm permission
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('android/app/src/main/AndroidManifest.xml')
           s = p.read_text()
-          permission = '    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n'
-          if permission.strip() not in s:
-              s = s.replace('<manifest ', '<manifest ', 1)
-              marker = '<application'
-              s = s.replace(marker, permission + '\n    ' + marker, 1)
-              p.write_text(s)
+          for permission in [
+              'android.permission.SCHEDULE_EXACT_ALARM',
+              'android.permission.POST_NOTIFICATIONS'
+          ]:
+              line = f'    <uses-permission android:name="{permission}" />\n'
+              if f'android:name="{permission}"' not in s:
+                  s = s.replace('<application', line + '\n    <application', 1)
+          p.write_text(s)
           PY
 
       - name: Setup Java
