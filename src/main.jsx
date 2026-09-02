@@ -4,6 +4,7 @@ import { BarChart3, Bell, BellRing, CalendarDays, Check, ChevronLeft, ChevronRig
 import { LocalNotifications } from '@capacitor/local-notifications';
 import './styles.css';
 import './daily.css';
+import './focus-fixes.css';
 
 const STORAGE='taskflow-tasks-v5', PROFILE_STORAGE='taskflow-profile-v1', THEME_STORAGE='taskflow-theme-v2', GOALS_STORAGE='taskflow-goals-v1';
 const TODAY=()=>new Date().toISOString().slice(0,10);
