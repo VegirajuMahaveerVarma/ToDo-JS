@@ -12,9 +12,9 @@ const DATE_KEY=d=>{const x=new Date(d);return new Date(x.getTime()-x.getTimezone
 const addDays=(s,n)=>{const d=new Date(`${s}T12:00:00`);d.setDate(d.getDate()+n);return DATE_KEY(d)};
 const daysBetween=(a,b)=>Math.round((new Date(`${b}T12:00:00`)-new Date(`${a}T12:00:00`))/86400000);
 const starterTasks=[
-{id:'1',title:'Finish ML assignment',category:'Study',priority:'High',due:'Today',date:TODAY(),time:'19:30',repeat:'None',done:false,alarm:true,notes:''},
-{id:'2',title:'Build the TaskFlow UI',category:'Work',priority:'Medium',due:'Today',date:TODAY(),time:'21:00',repeat:'None',done:false,alarm:false,notes:''},
-{id:'3',title:'Read for 20 minutes',category:'Personal',priority:'Low',due:'Today',date:TODAY(),time:'22:15',repeat:'None',done:true,completedDates:[TODAY()],alarm:false,notes:''},
+{id:'1',title:'Task 1',category:'Study',priority:'Medium',due:'Today',date:TODAY(),time:'',repeat:'None',done:false,alarm:false,notes:''},
+{id:'2',title:'Task 2',category:'Personal',priority:'Medium',due:'Today',date:TODAY(),time:'',repeat:'None',done:false,alarm:false,notes:''},
+{id:'3',title:'Read for 20 minutes',category:'Personal',priority:'Low',due:'Today',time:'22:15',repeat:'None',done:true,completedDates:[TODAY()],alarm:false,notes:''},
 {id:'4',title:'Plan tomorrow',category:'Personal',priority:'Medium',due:'Tomorrow',date:addDays(TODAY(),1),time:'18:00',repeat:'None',done:false,alarm:false,notes:''}
 ];
 const newUserTasks=()=>starterTasks.slice(0,2).map(t=>({...t,done:false,completedDates:[]}));
