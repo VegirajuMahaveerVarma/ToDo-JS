@@ -30,4 +30,10 @@
 [data-theme="light"] .about p{color:#777986}
 [data-theme="light"] .phone footer{color:#777986}
 [data-theme="light"] .phone footer b{color:#625a70}
+
+/* Add-task sheet: clear selected state in light mode */
+[data-theme="light"] .sheet .choice{color:#4f5260;background:rgba(238,239,245,.78);border-color:rgba(70,68,90,.13);box-shadow:inset 0 1px rgba(255,255,255,.72)}
+[data-theme="light"] .sheet .choice.active{color:#3d2b70;background:linear-gradient(145deg,rgba(211,195,255,.92),rgba(181,157,255,.72));border-color:rgba(126,91,220,.58);box-shadow:inset 0 1px rgba(255,255,255,.8),0 5px 16px rgba(126,91,220,.16)}
+[data-theme="light"] .sheet .choice.active::after{content:'✓';margin-left:6px;font-weight:800}
+[data-theme="light"] .sheet .field label{color:#737688}
 @media(max-width:420px){.backup-actions{grid-template-columns:1fr}.repeat-options .choice{flex:1}.task{padding:12px}.topbar h1{font-size:27px}}
