@@ -20,6 +20,24 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Patch alarm scheduling for Android
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/main.jsx')
+          s = p.read_text()
+          old = "useEffect(()=>localStorage.setItem(STORAGE,JSON.stringify(tasks)),[tasks]);"
+          new = old + "\n useEffect(()=>{if(!notice)return;const id=setTimeout(()=>setNotice(''),3000);return()=>clearTimeout(id)},[notice]);"
+          if "setTimeout(()=>setNotice(''),3000)" not in s:
+              s = s.replace(old, new, 1)
+          old_alarm = "const scheduleAlarm=async t=>{try{const p=await LocalNotifications.requestPermissions();if(p.display!=='granted'){setNotice('Allow notifications to use alarms.');return}const d=new Date(`${t.date||TODAY()}T${t.time}:00`);if(d<=new Date()){setNotice('Choose a future time for the alarm.');return}await LocalNotifications.schedule({notifications:[{id:Math.floor(Math.random()*2000000000),title:'TaskFlow Alarm',body:t.title,schedule:{at:d,allowWhileIdle:true},sound:'default',extra:{taskId:t.id}}]});setNotice(`Alarm set for ${t.time}.`)}catch{setNotice('Alarms work in the Android app after Local Notifications are synced.')}};"
+          new_alarm = "const scheduleAlarm=async t=>{try{const p=await LocalNotifications.requestPermissions();if(p.display!=='granted'){setNotice('Allow notifications to use alarms.');return}try{const exact=await LocalNotifications.checkExactNotificationSetting();if(exact.exact_alarm!=='granted'){const changed=await LocalNotifications.changeExactNotificationSetting();if(changed.exact_alarm!=='granted'){setNotice('Allow Alarms & reminders for TaskFlow.');return}}}catch{}await LocalNotifications.createChannel({id:'taskflow_alarm_v2',name:'TaskFlow Alarms',description:'Sound alerts for task reminders',importance:5,sound:'taskflow_alarm.wav',vibration:true,lights:true});const d=new Date(`${t.date||TODAY()}T${t.time}:00`);if(d<=new Date()){setNotice('Choose a future time for the alarm.');return}await LocalNotifications.schedule({notifications:[{id:Math.floor(Math.random()*2000000000),title:'TaskFlow Alarm',body:t.title,schedule:{at:d,allowWhileIdle:true},channelId:'taskflow_alarm_v2',autoCancel:true,extra:{taskId:t.id}}]});setNotice(`Alarm set for ${t.time}.`)}catch{setNotice('Could not set the alarm. Check Notifications and Alarms & reminders.')}};"
+          if old_alarm not in s:
+              raise SystemExit('Expected alarm function was not found; refusing to patch.')
+          s = s.replace(old_alarm, new_alarm, 1)
+          p.write_text(s)
+          PY
+
       - name: Build web app
         run: npm run build
 
@@ -29,7 +47,7 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Configure Android alarm permission
+      - name: Configure Android alarm permission and sound
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -43,6 +61,26 @@ jobs:
               if f'android:name="{permission}"' not in s:
                   s = s.replace('<application', line + '\n    <application', 1)
           p.write_text(s)
+
+          import math, wave, struct
+          raw = Path('android/app/src/main/res/raw')
+          raw.mkdir(parents=True, exist_ok=True)
+          out = raw / 'taskflow_alarm.wav'
+          rate = 44100
+          duration = 0.55
+          samples = int(rate * duration)
+          with wave.open(str(out), 'wb') as w:
+              w.setnchannels(1)
+              w.setsampwidth(2)
+              w.setframerate(rate)
+              frames = bytearray()
+              for i in range(samples):
+                  t = i / rate
+                  env = min(1.0, t / 0.03) * min(1.0, (duration - t) / 0.12)
+                  freq = 880 if t < 0.27 else 660
+                  value = int(15000 * env * math.sin(2 * math.pi * freq * t))
+                  frames += struct.pack('<h', value)
+              w.writeframes(frames)
           PY
 
       - name: Setup Java
