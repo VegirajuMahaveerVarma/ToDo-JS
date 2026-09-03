@@ -20,68 +20,249 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Patch alarm scheduling for Android
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Install native alarm implementation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('android/app/src/main/java/com/maha/taskflow')
+          root.mkdir(parents=True, exist_ok=True)
+          (root / 'TaskflowAlarmPlugin.java').write_text(r'''package com.maha.taskflow;
+
+import android.Manifest;
+import android.app.AlarmManager;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
+
+import androidx.core.app.NotificationCompat;
+
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+@CapacitorPlugin(name = "TaskflowAlarm")
+public class TaskflowAlarmPlugin extends Plugin {
+    private static final String CHANNEL_ID = "taskflow_alarm_v3";
+
+    private void ensureChannel(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        AudioAttributes attrs = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "TaskFlow Alarms", NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription("TaskFlow task alarm alerts");
+        channel.enableVibration(true);
+        channel.setVibrationPattern(new long[]{0, 500, 250, 500, 250, 700});
+        channel.setSound(sound, attrs);
+        nm.createNotificationChannel(channel);
+    }
+
+    @PluginMethod
+    public void checkExact(PluginCall call) {
+        AlarmManager am = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+        JSObject ret = new JSObject();
+        boolean allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
+        ret.put("allowed", allowed);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestExact(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            AlarmManager am = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+            if (!am.canScheduleExactAlarms()) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                getContext().startActivity(intent);
+            }
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void schedule(PluginCall call) {
+        long triggerAt = call.getLong("triggerAt", 0L);
+        int id = call.getInt("id", (int)(System.currentTimeMillis() & 0x7fffffff));
+        String title = call.getString("title", "TaskFlow Alarm");
+        String body = call.getString("body", "Task reminder");
+        if (triggerAt <= System.currentTimeMillis()) {
+            call.reject("Alarm time must be in the future");
+            return;
+        }
+
+        AlarmManager am = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+            JSObject data = new JSObject();
+            data.put("exactAlarmRequired", true);
+            call.reject("Exact alarm access is required", null, null, data);
+            return;
+        }
+
+        ensureChannel(getContext());
+        Intent intent = new Intent(getContext(), TaskflowAlarmReceiver.class);
+        intent.putExtra("id", id);
+        intent.putExtra("title", title);
+        intent.putExtra("body", body);
+        PendingIntent pending = PendingIntent.getBroadcast(
+                getContext(), id, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+        Intent showIntent = new Intent(getContext(), MainActivity.class);
+        PendingIntent show = PendingIntent.getActivity(
+                getContext(), id + 100000, showIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+        AlarmManager.AlarmClockInfo info = new AlarmManager.AlarmClockInfo(triggerAt, show);
+        am.setAlarmClock(info, pending);
+        JSObject ret = new JSObject();
+        ret.put("scheduled", true);
+        ret.put("id", id);
+        call.resolve(ret);
+    }
+}
+''')
+          (root / 'TaskflowAlarmReceiver.java').write_text(r'''package com.maha.taskflow;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
+import android.net.Uri;
+import android.os.Build;
+
+import androidx.core.app.NotificationCompat;
+
+public class TaskflowAlarmReceiver extends BroadcastReceiver {
+    private static final String CHANNEL_ID = "taskflow_alarm_v3";
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        createChannel(context);
+        int id = intent.getIntExtra("id", (int)(System.currentTimeMillis() & 0x7fffffff));
+        String title = intent.getStringExtra("title");
+        String body = intent.getStringExtra("body");
+        if (title == null) title = "TaskFlow Alarm";
+        if (body == null) body = "Task reminder";
+
+        Intent open = new Intent(context, MainActivity.class);
+        open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent content = PendingIntent.getActivity(
+                context, id + 200000, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        Notification notification = new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(context.getApplicationInfo().icon)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setAutoCancel(true)
+                .setContentIntent(content)
+                .setSound(sound)
+                .setVibrate(new long[]{0, 500, 250, 500, 250, 700})
+                .build();
+
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT < 33 || nm.areNotificationsEnabled()) {
+            nm.notify(id, notification);
+        }
+    }
+
+    private void createChannel(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        AudioAttributes attrs = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "TaskFlow Alarms", NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription("TaskFlow task alarm alerts");
+        channel.enableVibration(true);
+        channel.setVibrationPattern(new long[]{0, 500, 250, 500, 250, 700});
+        channel.setSound(sound, attrs);
+        nm.createNotificationChannel(channel);
+    }
+}
+''')
+          main = Path('android/app/src/main/java/com/maha/taskflow/MainActivity.java')
+          s = main.read_text()
+          s = s.replace('import com.getcapacitor.BridgeActivity;', 'import com.getcapacitor.BridgeActivity;\nimport com.maha.taskflow.TaskflowAlarmPlugin;')
+          s = s.replace('public class MainActivity extends BridgeActivity {', 'public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        registerPlugin(TaskflowAlarmPlugin.class);\n    }')
+          main.write_text(s)
+          PY
+
+      - name: Patch Android manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          perms = [
+              'android.permission.SCHEDULE_EXACT_ALARM',
+              'android.permission.POST_NOTIFICATIONS'
+          ]
+          for permission in perms:
+              line = f'    <uses-permission android:name="{permission}" />\n'
+              if f'android:name="{permission}"' not in s:
+                  s = s.replace('<application', line + '\n    <application', 1)
+          receiver = '        <receiver android:name=".TaskflowAlarmReceiver" android:exported="false" />\n'
+          if 'TaskflowAlarmReceiver' not in s:
+              s = s.replace('</application>', receiver + '    </application>', 1)
+          p.write_text(s)
+          PY
+
+      - name: Patch JavaScript alarm bridge
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('src/main.jsx')
           s = p.read_text()
-          old = "useEffect(()=>localStorage.setItem(STORAGE,JSON.stringify(tasks)),[tasks]);"
-          new = old + "\n useEffect(()=>{if(!notice)return;const id=setTimeout(()=>setNotice(''),3000);return()=>clearTimeout(id)},[notice]);"
-          if "setTimeout(()=>setNotice(''),3000)" not in s:
+          if "registerPlugin('TaskflowAlarm')" not in s:
+              s = s.replace("import { LocalNotifications } from '@capacitor/local-notifications';", "import { LocalNotifications } from '@capacitor/local-notifications';\nimport { registerPlugin } from '@capacitor/core';\nconst TaskflowAlarm = registerPlugin('TaskflowAlarm');", 1)
+          old = "const scheduleAlarm=async t=>{try{const p=await LocalNotifications.requestPermissions();if(p.display!=='granted'){setNotice('Allow notifications to use alarms.');return}try{const exact=await LocalNotifications.checkExactNotificationSetting();if(exact.exact_alarm!=='granted'){const changed=await LocalNotifications.changeExactNotificationSetting();if(changed.exact_alarm!=='granted'){setNotice('Allow Alarms & reminders for TaskFlow.');return}}}catch{}await LocalNotifications.createChannel({id:'taskflow_alarm_v2',name:'TaskFlow Alarms',description:'Sound alerts for task reminders',importance:5,sound:'taskflow_alarm.wav',vibration:true,lights:true});const d=new Date(`${t.date||TODAY()}T${t.time}:00`);if(d<=new Date()){setNotice('Choose a future time for the alarm.');return}const result=await LocalNotifications.schedule({notifications:[{id:Math.floor(Math.random()*2000000000),title:'TaskFlow Alarm',body:t.title,schedule:{at:d,allowWhileIdle:true},channelId:'taskflow_alarm_v2',autoCancel:true,extra:{taskId:t.id}}]});if(result?.notifications?.length)setNotice(`Alarm set for ${t.time}.`);else setNotice('Alarm could not be scheduled.')}catch{setNotice('Could not set the alarm. Check Android notification and alarm permissions.')}};"
+          old2 = "const scheduleAlarm=async t=>{try{const p=await LocalNotifications.requestPermissions();if(p.display!=='granted'){setNotice('Allow notifications to use alarms.');return}const d=new Date(`${t.date||TODAY()}T${t.time}:00`);if(d<=new Date()){setNotice('Choose a future time for the alarm.');return}await LocalNotifications.schedule({notifications:[{id:Math.floor(Math.random()*2000000000),title:'TaskFlow Alarm',body:t.title,schedule:{at:d,allowWhileIdle:true},sound:'default',extra:{taskId:t.id}}]});setNotice(`Alarm set for ${t.time}.`)}catch{setNotice('Alarms work in the Android app after Local Notifications are synced.')}};"
+          new = "const scheduleAlarm=async t=>{try{const p=await LocalNotifications.requestPermissions();if(p.display!=='granted'){setNotice('Allow notifications to use alarms.');return}const d=new Date(`${t.date||TODAY()}T${t.time}:00`);if(d<=new Date()){setNotice('Choose a future time for the alarm.');return}const exact=await TaskflowAlarm.checkExact();if(!exact?.allowed){setNotice('Allow Alarms & reminders for TaskFlow.');await TaskflowAlarm.requestExact();return}const id=Math.floor(Math.random()*2000000000);await TaskflowAlarm.schedule({id,title:'TaskFlow Alarm',body:t.title,triggerAt:d.getTime()});setNotice(`Alarm set for ${t.time}.`)}catch(e){if(e?.data?.exactAlarmRequired){setNotice('Allow Alarms & reminders for TaskFlow.');try{await TaskflowAlarm.requestExact()}catch{}}else{setNotice('Could not set the alarm. Check Notifications and Alarms & reminders.')}}};"
+          if old in s:
               s = s.replace(old, new, 1)
-          old_alarm = "const scheduleAlarm=async t=>{try{const p=await LocalNotifications.requestPermissions();if(p.display!=='granted'){setNotice('Allow notifications to use alarms.');return}const d=new Date(`${t.date||TODAY()}T${t.time}:00`);if(d<=new Date()){setNotice('Choose a future time for the alarm.');return}await LocalNotifications.schedule({notifications:[{id:Math.floor(Math.random()*2000000000),title:'TaskFlow Alarm',body:t.title,schedule:{at:d,allowWhileIdle:true},sound:'default',extra:{taskId:t.id}}]});setNotice(`Alarm set for ${t.time}.`)}catch{setNotice('Alarms work in the Android app after Local Notifications are synced.')}};"
-          new_alarm = "const scheduleAlarm=async t=>{try{const p=await LocalNotifications.requestPermissions();if(p.display!=='granted'){setNotice('Allow notifications to use alarms.');return}try{const exact=await LocalNotifications.checkExactNotificationSetting();if(exact.exact_alarm!=='granted'){const changed=await LocalNotifications.changeExactNotificationSetting();if(changed.exact_alarm!=='granted'){setNotice('Allow Alarms & reminders for TaskFlow.');return}}}catch{}await LocalNotifications.createChannel({id:'taskflow_alarm_v2',name:'TaskFlow Alarms',description:'Sound alerts for task reminders',importance:5,sound:'taskflow_alarm.wav',vibration:true,lights:true});const d=new Date(`${t.date||TODAY()}T${t.time}:00`);if(d<=new Date()){setNotice('Choose a future time for the alarm.');return}await LocalNotifications.schedule({notifications:[{id:Math.floor(Math.random()*2000000000),title:'TaskFlow Alarm',body:t.title,schedule:{at:d,allowWhileIdle:true},channelId:'taskflow_alarm_v2',autoCancel:true,extra:{taskId:t.id}}]});setNotice(`Alarm set for ${t.time}.`)}catch{setNotice('Could not set the alarm. Check Notifications and Alarms & reminders.')}};"
-          if old_alarm not in s:
-              raise SystemExit('Expected alarm function was not found; refusing to patch.')
-          s = s.replace(old_alarm, new_alarm, 1)
+          elif old2 in s:
+              s = s.replace(old2, new, 1)
+          else:
+              raise SystemExit('Expected scheduleAlarm implementation was not found.')
           p.write_text(s)
           PY
 
       - name: Build web app
         run: npm run build
 
-      - name: Add Android platform
-        run: npx cap add android
-
       - name: Sync Capacitor
         run: npx cap sync android
-
-      - name: Configure Android alarm permission and sound
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('android/app/src/main/AndroidManifest.xml')
-          s = p.read_text()
-          for permission in [
-              'android.permission.SCHEDULE_EXACT_ALARM',
-              'android.permission.POST_NOTIFICATIONS'
-          ]:
-              line = f'    <uses-permission android:name="{permission}" />\n'
-              if f'android:name="{permission}"' not in s:
-                  s = s.replace('<application', line + '\n    <application', 1)
-          p.write_text(s)
-
-          import math, wave, struct
-          raw = Path('android/app/src/main/res/raw')
-          raw.mkdir(parents=True, exist_ok=True)
-          out = raw / 'taskflow_alarm.wav'
-          rate = 44100
-          duration = 0.55
-          samples = int(rate * duration)
-          with wave.open(str(out), 'wb') as w:
-              w.setnchannels(1)
-              w.setsampwidth(2)
-              w.setframerate(rate)
-              frames = bytearray()
-              for i in range(samples):
-                  t = i / rate
-                  env = min(1.0, t / 0.03) * min(1.0, (duration - t) / 0.12)
-                  freq = 880 if t < 0.27 else 660
-                  value = int(15000 * env * math.sin(2 * math.pi * freq * t))
-                  frames += struct.pack('<h', value)
-              w.writeframes(frames)
-          PY
 
       - name: Setup Java
         uses: actions/setup-java@v4
