@@ -23,10 +23,7 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Install native alarm implementation
-        run: python scripts/setup_native_alarm.py
-
-      - name: Bundle TaskFlow alarm sound
+      - name: Generate TaskFlow alarm sound
         run: python scripts/setup_alarm_sound.py
 
       - name: Build web app
