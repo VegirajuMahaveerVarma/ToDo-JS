@@ -26,6 +26,9 @@ jobs:
       - name: Install native alarm implementation
         run: python scripts/setup_native_alarm.py
 
+      - name: Add TaskFlow alarm sound
+        run: python scripts/setup_alarm_sound.py
+
       - name: Build web app
         run: npm run build
 
