@@ -39,7 +39,10 @@ for java_file in [
 
 main = Path('android/app/src/main/java/com/maha/taskflow/MainActivity.java')
 s = main.read_text(encoding='utf-8')
-s = s.replace('        registerPlugin(TaskflowAlarmPlugin.class);\n        super.onCreate(savedInstanceState);', '        super.onCreate(savedInstanceState);\n        registerPlugin(TaskflowAlarmPlugin.class);')
+old = '''        super.onCreate(savedInstanceState);\n        registerPlugin(TaskflowAlarmPlugin.class);'''
+new = '''        registerPlugin(TaskflowAlarmPlugin.class);\n        super.onCreate(savedInstanceState);'''
+if old in s:
+    s = s.replace(old, new)
 main.write_text(s, encoding='utf-8')
 
 print(f'Bundled alarm sound created: {out}')
