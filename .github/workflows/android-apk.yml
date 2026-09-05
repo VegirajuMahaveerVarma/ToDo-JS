@@ -23,6 +23,9 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Apply Capacitor exact alarm setup
+        run: python scripts/setup_native_alarm.py
+
       - name: Generate TaskFlow alarm sound
         run: python scripts/setup_alarm_sound.py
 
