@@ -28,21 +28,4 @@ with wave.open(str(out), 'wb') as w:
     w.setframerate(rate)
     w.writeframes(frames)
 
-for java_file in [
-    Path('android/app/src/main/java/com/maha/taskflow/TaskflowAlarmPlugin.java'),
-    Path('android/app/src/main/java/com/maha/taskflow/TaskflowAlarmReceiver.java'),
-]:
-    s = java_file.read_text(encoding='utf-8')
-    s = s.replace('import android.media.RingtoneManager;\n', '')
-    s = s.replace('        Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);', '        Uri sound = Uri.parse("android.resource://" + context.getPackageName() + "/" + R.raw.taskflow_alarm);')
-    java_file.write_text(s, encoding='utf-8')
-
-main = Path('android/app/src/main/java/com/maha/taskflow/MainActivity.java')
-s = main.read_text(encoding='utf-8')
-old = '''        super.onCreate(savedInstanceState);\n        registerPlugin(TaskflowAlarmPlugin.class);'''
-new = '''        registerPlugin(TaskflowAlarmPlugin.class);\n        super.onCreate(savedInstanceState);'''
-if old in s:
-    s = s.replace(old, new)
-main.write_text(s, encoding='utf-8')
-
 print(f'Bundled alarm sound created: {out}')
